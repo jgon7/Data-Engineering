@@ -10,6 +10,7 @@ from airflow.operators.python_operator import PythonOperator
 #from airflow.utils.dates import days_ago
 import pandas as pd
 import os
+import smtplib
 
 dag_path = os.getcwd()     #path original.. home en Docker
 
@@ -33,7 +34,7 @@ redshift_conn = {
 default_args = {
     'owner': 'JessicaGonzalez',
     'start_date': datetime(2023,12,4),
-    'retries':0,
+    'retries': 5,
     'retry_delay': timedelta(minutes=5)
 }
 
@@ -159,7 +160,23 @@ def cargar_data(exec_date):
     cur.execute("BEGIN")
     execute_values(cur, insert_sql, values)
     cur.execute("COMMIT")
-    
+
+
+def enviar_email(exec_date):
+    try:
+        x=smtplib.SMTP('smtp.gmail.com',587)
+        x.starttls()
+        x.login('jessicagonzalezcab@gmail.com','owdr vzwv sxhh ndwz')
+        subject='Informacion cargada en Airflow '
+        body_text=f"Se han cargado exitosamente los datos de Marvel en AirFlow con fecha {exec_date}"
+        message='Subject: {}\n\n{}'.format(subject,body_text)
+        x.sendmail('jessicagonzalezcab@gmail.com','jessica.gonzalez0710@gmail.com',message)
+        print('Email enviado con éxito')
+    except Exception as exception:
+        print(exception)
+        print('Fallo al enviar el email')
+
+
 
 # Tareas
 
@@ -196,5 +213,13 @@ task_32 = PythonOperator(
     dag=MARVEL_dag,
 )
 
+# 4 Envio de email
+task_4 = PythonOperator(
+    task_id='enviar_email',
+    python_callable=enviar_email,
+    op_args=["{{ ds }} {{ execution_date.hour }}"],
+    dag=MARVEL_dag,
+)
+
 # Definicion orden de tareas
-task_1 >> task_2 >> task_31 >> task_32
+task_1 >> task_2 >> task_31 >> task_32 >> task_4
